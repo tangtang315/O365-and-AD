@@ -4,7 +4,7 @@ foreach ($ou in $ous)
 if (!(Get-ADOrganizationalUnit -Filter {distinguishedname -eq $ou}))
 {
 $mailuser = "xxx@xxx.com"
-$pass = ConvertTo-SecureString  "wEABn1s3" -AsPlainText -Force
+$pass = ConvertTo-SecureString  "password" -AsPlainText -Force
 $userCredential=New-Object System.Management.Automation.PSCredential($mailuser,$pass)
 $body = "($ou)部门错误，需要设置显示名称需要更改的部门"
 Send-MailMessage -To xxx@xxx.com,xxx@xxx.com -from xxx@xxx.com -Subject ‘人员显示名称刷新错误' -Body $body -smtpserver smtp.partner.outlook.cn -usessl -Credential $userCredential -Port 587 -encoding utf8
