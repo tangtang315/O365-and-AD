@@ -1,0 +1,37 @@
+$Today = Get-Date
+$yester = $today.AddDays(-1)
+$users = Get-ADUser -Filter {enabled -eq 'false' -and whenchanged -ge $yester} -SearchBase "OU=deleted,OU=o365user,DC=xxx,DC=com" -Properties mail,manager
+
+
+$username = "xxx@xxx.com"
+$password = ConvertTo-SecureString  "password" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($username,$password)
+$orgName="xxx"
+Connect-SPOService -Url https://$orgName-admin.sharepoint.cn -Credential $userCredential
+ForEach($User in $Users)
+{
+    $replace = $user.mail -replace "\.|\@","_"
+	$manager = get-aduser -Filter 'distinguishedname -eq $user.manager' -Properties mail
+    $site = "https://xxx01-my.sharepoint.cn/personal/" + $replace
+	Set-SPOUser -Site $site -LoginName $manager.mail -IsSiteCollectionAdmin $true
+    #Set-SPOSite -Identity $site -Owner $manager.mail
+
+}
+
+#$mailuser = "xxx@xxx.com"
+#$pass = ConvertTo-SecureString  "password" -AsPlainText -Force
+#$userCredential=New-Object System.Management.Automation.PSCredential($mailuser,$pass)
+#$body = "Hi,您的下属已经离职,他的邮箱是$user.mail,现在已经将他onedrive权限转移给了您,您可以通过$site 来访问，请在30天内将需要的文档自行下载转移，谢谢！"
+#Send-MailMessage -To $manager.mail -from xxx@xxx.com -Subject '离职员工onedrive站点提醒' -Body $body -smtpserver smtp.partner.outlook.cn -usessl -Credential $userCredential -Port 587 -encoding utf8
+
+<#
+$username = "xxx@xxx.com"
+$password = ConvertTo-SecureString  "password" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($username,$password)
+Connect-MsolService -AzureEnvironment AzureChinaCloud -Credential $UserCredential
+
+ForEach($User in $Users)
+{
+	Set-MsolUserLicense -UserPrincipalName $user.mail -RemoveLicenses (Get-MsolUser -UserPrincipalName $user.mail).licenses.accountskuid
+}
+#>
