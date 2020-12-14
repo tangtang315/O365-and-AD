@@ -1,0 +1,6 @@
+$username = "xxx@xxx.com"
+$password = ConvertTo-SecureString  "password" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($username,$password)
+Connect-MsolService -AzureEnvironment AzureChinaCloud -Credential $UserCredential
+#Connect-MsolService
+Get-MsolUser -All -EnabledFilter EnabledOnly | Where-Object { -not  $_.IsLicensed }
