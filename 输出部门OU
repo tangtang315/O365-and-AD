@@ -1,0 +1,121 @@
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.Application]::EnableVisualStyles()
+[System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") | Out-Null
+[System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null
+Add-Type -AssemblyName System.Drawing
+ $dc_hash = @{}
+    $selected_ou = $null
+
+    Import-Module ActiveDirectory
+    $forest = Get-ADForest
+    [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") | Out-Null
+    [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms") | Out-Null
+
+   # function Get-NodeInfo($sender, $dn_textbox)
+   # {
+   #     $selected_node = $sender.Node
+   #     $dn_textbox.Text = $selected_node.Name
+    #}
+
+    function Add-ChildNodes($sender)
+    {
+        $expanded_node = $sender.Node
+
+        if ($expanded_node.Name -eq "root") {
+            return
+        }
+
+        $expanded_node.Nodes.Clear() | Out-Null
+
+        $dc_hostname = $dc_hash[$($expanded_node.Name -replace '(OU=[^,]+,)*((DC=\w+,?)+)','$2')]
+        $child_OUs = Get-ADObject -Server $dc_hostname -Filter 'ObjectClass -eq "organizationalUnit" -or ObjectClass -eq "container"' -SearchScope OneLevel -SearchBase $expanded_node.Name
+        if($child_OUs -eq $null) {
+            $sender.Cancel = $true
+        } else {
+            foreach($ou in $child_OUs) {
+                $ou_node = New-Object Windows.Forms.TreeNode
+                $ou_node.Text = $ou.Name
+                $ou_node.Name = $ou.DistinguishedName
+                $ou_node.Nodes.Add('') | Out-Null
+                $expanded_node.Nodes.Add($ou_node) | Out-Null
+            }
+        }
+    }
+
+    function Add-ForestNodes($forest, [ref]$dc_hash)
+    {
+        $ad_root_node = New-Object Windows.Forms.TreeNode
+        $ad_root_node.Text = $forest.RootDomain
+        $ad_root_node.Name = "root"
+        $ad_root_node.Expand()
+
+        $i = 1
+        foreach ($ad_domain in $forest.Domains) {
+            Write-Progress -Activity "Querying AD forest for domains and hostnames..." -Status $ad_domain -PercentComplete ($i++ / $forest.Domains.Count * 100)
+            $dc = Get-ADDomainController -Server $ad_domain
+            $dn = $dc.DefaultPartition
+            $dc_hash.Value.Add($dn, $dc.Hostname)
+            $dc_node = New-Object Windows.Forms.TreeNode
+            $dc_node.Name = $dn
+            $dc_node.Text = $dc.Domain
+            $dc_node.Nodes.Add("") | Out-Null
+            $ad_root_node.Nodes.Add($dc_node) | Out-Null
+        }
+
+        return $ad_root_node
+    }
+
+function findChecked($node) {
+  foreach ($n in $node.nodes) {
+    if ($n.checked) 
+    { 
+    write-host $n.Name 
+    $n.Name >> C:\displayname\displayname.txt
+    }
+    findChecked($n)
+   
+  }
+}
+$ButtonOK_Click = {
+    #GetCheckedNode $ad_tree_view.Nodes
+    findChecked($ad_tree_view.Nodes)
+}
+
+$main_dlg_box = New-Object System.Windows.Forms.Form
+$main_dlg_box.ClientSize = New-Object System.Drawing.Size(400,600)
+$main_dlg_box.MaximizeBox = $false
+$main_dlg_box.MinimizeBox = $false
+$main_dlg_box.FormBorderStyle = 'FixedSingle'
+$ctrl_width_col = $main_dlg_box.ClientSize.Width/20
+$ctrl_height_row = $main_dlg_box.ClientSize.Height/15
+$max_ctrl_width = $main_dlg_box.ClientSize.Width - $ctrl_width_col*2
+$max_ctrl_height = $main_dlg_box.ClientSize.Height - $ctrl_height_row
+$right_edge_x = $max_ctrl_width
+$left_edge_x = $ctrl_width_col
+$bottom_edge_y = $max_ctrl_height
+$top_edge_y = $ctrl_height_row
+
+
+$ButtonOK = New-Object System.Windows.Forms.Button
+$ButtonOK.DialogResult = 'OK'
+$ButtonOK.Location =New-Object System.Drawing.Point(($right_edge_x - $ButtonOK.Width), ($bottom_edge_y - $ButtonOK.Height))
+$ButtonOK.Size = '75,23'
+$ButtonOK.Name = 'ButtonOK'
+$ButtonOK.Text = 'OK'
+mv -force C:\displayname\displayname.txt C:\displayname\backup.txt
+$ButtonOK.add_Click($ButtonOK_Click)
+$main_dlg_box.Controls.Add($ButtonOK)
+
+$ad_tree_view = New-Object System.Windows.Forms.TreeView
+$ad_tree_view.Size = New-Object System.Drawing.Size($max_ctrl_width, ($max_ctrl_height  - $ctrl_height_row*1.5))
+$ad_tree_view.Location = New-Object System.Drawing.Point($left_edge_x, $top_edge_y)
+$ad_tree_view = New-Object System.Windows.Forms.TreeView
+$ad_tree_view.Size = New-Object System.Drawing.Size($max_ctrl_width, ($max_ctrl_height - $dn_text_box.Height - $ctrl_height_row*1.5))
+$ad_tree_view.Location = New-Object System.Drawing.Point($left_edge_x, $top_edge_y)
+$ad_tree_view.Nodes.Add($(Add-ForestNodes $forest ([ref]$dc_hash))) | Out-Null
+$ad_tree_view.Add_BeforeExpand({Add-ChildNodes $_})
+#$ad_tree_view.Add_AfterSelect({Get-NodeInfo $_ $dn_text_box})
+$ad_tree_view.CheckBoxes = $true
+$ad_tree_view.Dock = 'Fill'
+$main_dlg_box.Controls.Add($ad_tree_view)
+$result = $main_dlg_box.ShowDialog()
