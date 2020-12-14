@@ -1,0 +1,114 @@
+
+sleep 120
+$username = "xxx@xxx.com"
+$password = ConvertTo-SecureString  "amszd1yqtcjY#g" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($username,$password)
+Connect-MsolService -AzureEnvironment AzureChinaCloud -Credential $UserCredential
+$Today = Get-Date -year (Get-Date).Year -Month (Get-Date).Month -Day ((Get-Date).Day) -Hour 00 -Minute 00 -Second 00
+$users = Get-ADUser -SearchBase "OU=xxx,OU=O365User,DC=xxx,DC=com" -Filter {whencreated -ge $today} -Properties mail
+$year = $today.Year
+$day=$today.Day
+$month=$today.Month
+
+
+ForEach($User in $Users)
+{
+
+Set-ADUser -Identity $user.samaccountname -Replace @{middlename='active'}
+}
+
+
+ForEach($User in $Users)
+{
+
+Set-MsolUser -UserPrincipalName $user.userPrincipalName -UsageLocation "cn"
+}
+ForEach($User in $Users)
+{
+	if ((get-msoluser -UserPrincipalName $user.userPrincipalName).islicensed -eq $false)
+	{
+	
+	Set-MsolUserLicense -UserPrincipalName $user.userPrincipalName -AddLicenses "reseller-account:STANDARDPACK"
+	}
+}
+
+
+
+sleep 40
+
+$username = "xxx@xxx.com"
+$password = ConvertTo-SecureString  "amszd1yqtcjY#g" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($username,$password)
+$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri https://partner.outlook.cn/PowerShell -Credential $UserCredential -Authentication Basic -AllowRedirection
+Import-PSSession $Session
+
+
+ForEach($user in $users)
+{
+$mailbox = Get-Mailbox -Identity $user.UserPrincipalName -ErrorAction silentlycontinue
+if(!$mailbox){
+    "$user does not have a mailbox">>C:\logs\nomailbox.log
+    if((get-msoluser -UserPrincipalName $user.userPrincipalName).islicensed -eq $true)
+        {
+            # if it is assigned license, remove it first
+            # the license name in the command "Set-MsolUserLicense" needs to be modified according to actual scenario
+            "this user has license assigned, remove it first" >> C:\logs\nomailbox.log
+            Set-MsolUserLicense -UserPrincipalName $user.userPrincipalName -RemoveLicenses "reseller-account:STANDARDPACK"
+            Start-Sleep -s 30
+            "remove license complete" >> C:\logs\nomailbox.log
+        }
+        Set-MsolUserLicense -UserPrincipalName $user.userPrincipalName -AddLicenses "reseller-account:STANDARDPACK"
+        "assign license complete" >> C:\logs\nomailbox.log
+            else{
+        "$user has a mailbox, no action is needed">>C:\logs\mailbox.log
+                }
+}
+}
+
+ForEach($User in $Users)
+{
+Enable-Mailbox -Identity $user.mail -Archive
+Set-Mailbox -Identity $user.mail -AuditEnabled $true
+Set-Mailbox -Identity $user.mail -Type regular
+}
+Foreach($user in $users)
+{
+$cal = $user.name+"@xxx.com:\calendar"
+Add-MailboxFolderPermission -Identity $cal -User xxx@xxx.com -AccessRights reviewer
+}
+ForEach($User in $Users)
+{
+
+Set-Mailbox -Identity $user.mail -ForwardingAddress $null
+
+}
+
+
+
+$username = "xxx@xxx.com"
+$password = ConvertTo-SecureString  "amszd1yqtcjY#g" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($username,$password)
+$orgName="xxx"
+Connect-SPOService -Url https://$orgName-admin.sharepoint.cn -Credential $userCredential
+ForEach($user in $users)
+{
+    $replace = $user.mail -replace "\.|\@","_"
+    $site = "https://xxx-my.sharepoint.cn/personal/" + $replace
+	Set-SPOSite -Identity $site -Owner $user.mail
+
+}
+
+
+
+
+
+
+
+
+
+$mailuser = "xxx@xxx.com"
+$pass = ConvertTo-SecureString  "password" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($mailuser,$pass)
+$body = "$($users.mail)"
+$users.mail|get-mailbox > c:\ad\log\"status-$year-$month-$day".csv
+Send-MailMessage -To xxx@xxx.com -from xxx@xxx.com -Subject '邮箱开通情况' -Body $body -smtpserver smtp.partner.outlook.cn -usessl -Credential $userCredential -Port 587 -encoding utf8 -Attachments c:\ad\log\"status-$year-$month-$day".csv
