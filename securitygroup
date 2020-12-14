@@ -1,0 +1,33 @@
+ $securegroups=Get-ADGroup -SearchBase "OU=xxxsecuritygroup,OU=O365User,DC=xxx,DC=com" -Filter *
+ foreach($securegroup in $securegroups)
+ {
+ Set-ADgroup -Identity $securegroup.samaccountname -SamAccountName $securegroup.name
+ 
+ }
+
+
+
+$ous = Get-ADOrganizationalUnit -SearchBase "OU=xxx,OU=O365User,DC=xxx,DC=com" -Properties canonicalname -Filter *
+$oureplace1 = $ous.canonicalname -replace "xxx.com\/O365User\/xxx\/",""
+$groups = $oureplace1 -replace "\/","_"
+
+ foreach ($ou in $ous)
+ {
+    $users = Get-ADUser -SearchBase $ou -Filter * -SearchScope OneLevel
+    $subtree = Get-ADOrganizationalUnit -SearchBase $ou -Filter * -SearchScope OneLevel -Properties canonicalname
+    $replace1 = $ou.canonicalname -replace "xxx.com\/O365User\/xxx\/",""
+    $groupname = $replace1 -replace "\/","_"
+    $subname = $subtree.canonicalname -replace "xxx.com\/O365User\/xxx\/",""
+    $subgroups = $subname -replace "\/","_"
+
+    Add-ADGroupMember -Identity $groupname -Members $users.samaccountname   
+      foreach ($subgroup in $subgroups)
+    {
+    Add-ADGroupMember -Identity $groupname -Members $subgroup
+    Add-ADGroupMember -Identity '$FD5000-KB1T2JT3VF98' -Members $subgroup
+    }  
+    
+}
+ 
+
+
