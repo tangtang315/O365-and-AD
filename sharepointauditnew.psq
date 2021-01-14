@@ -1,0 +1,61 @@
+$username = "admin@xxx.com"
+$password = ConvertTo-SecureString  "password" -AsPlainText -Force
+$userCredential=New-Object System.Management.Automation.PSCredential($username,$password)
+$orgName="xxx01"
+Connect-SPOService -Url https://$orgName-admin.sharepoint.cn -Credential $userCredential
+
+$Today = Get-Date -year (Get-Date).Year -Month (Get-Date).Month -Day ((Get-Date).Day-2) -Hour 00 -Minute 00 -Second 00
+$users = Get-ADUser -SearchBase "OU=xxx,DC=com" -Filter {whencreated -ge $Today} -Properties mail
+$year = $today.Year
+$day=$today.Day
+$month=$today.Month
+#$users = Get-ADUser -Filter {enabled -eq 'true' } -SearchBase "OU=XXX,DC=com" -Properties mail,manager
+
+ForEach($User in $Users)
+{
+    $replace = $user.mail -replace "\.|\@","_"
+	#$manager = get-aduser -Filter 'distinguishedname -eq $user.manager' -Properties mail
+    $SiteURL = "https://xxx01-my.sharepoint.cn/personal/" + $replace
+	#Set-SPOUser -Site $site -LoginName $manager.mail -IsSiteCollectionAdmin $true
+    #Set-SPOSite -Identity $site -Owner $manager.mail
+    #$Cred= Get-Credential
+    $Credentials = New-Object Microsoft.SharePoint.Client.SharePointOnlineCredentials($username,$password)
+
+    Try {
+    #Setup the context
+ 
+    $Context = New-Object Microsoft.SharePoint.Client.ClientContext($SiteURL)
+    $Context.Credentials = $credentials
+ 
+    #Get the Site Collection and Audit Objects
+    $Site = $Context.Site
+    $Context.Load($Site)
+    $Audit = $Site.Audit
+    $Context.Load($Audit)
+    $Context.ExecuteQuery()
+ 
+    #Define Audit Flag
+    $AuditFlag = [Microsoft.SharePoint.Client.AuditMaskType]::all
+ 
+    #Set Audit Settings for the Site collection
+    $Audit.AuditFlags = $AuditFlag
+    $Audit.Update()
+ 
+    #Set Autdit Log Trimming Options
+    $Site.TrimAuditLog = $True
+    $Site.AuditLogTrimmingRetention = 90
+    $Audit.Update()
+ 
+    #Set Audit Log location
+    $Site.RootWeb.AllProperties["_auditlogreportstoragelocation"] = $SiteURL+"AuditDocuments"
+    $Site.RootWeb.Update()
+ 
+    $Context.ExecuteQuery()
+ 
+   Write-host "Audit Settings Configured for the Site Collection!" -ForegroundColor Green
+}
+catch {
+    write-host "Error Enabling Audit for Site Collection $($_.Exception.Message)" -Foregroundcolor Red
+}
+
+}
